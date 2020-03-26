@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+echo Enter ARN of the DMS task to be converted from blacklist to whitelist
+read arn
+
+echo stopping dms task
+jaws dms --profile ipsystaging stop-replication-task --replication-task-arn $arn
+
+sleep 90 
+
+echo executing jaws dms --profile ipsystaging describe-table-statistics --replication-task-arn $arn
+jaws dms --profile ipsystaging describe-table-statistics --replication-task-arn $arn > whitelist_tables.json
+
+echo converting the table stats json to csv. Generating include/include_tables.csv  
+python generate_whitelist_tables.py
+
+echo converting include/include_tables to table mapping json. THIS IS THE WHITELIST
+python generate_json.py
+
+rm include/*
+rm whitelist_tables.json
+
+echo modifying dms task 
+jaws dms --profile ipsystaging modify-replication-task --replication-task-arn $arn --table-mappings file:///Users/suryatamraparni/workspace/dms_whitelist/automated_json.json
+
+sleep 90
+rm automated_json.json
+
+jaws dms --profile ipsystaging start-replication-task --replication-task-arn $arn --start-replication-task-type resume-processing
+
